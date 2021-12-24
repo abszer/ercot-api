@@ -1,12 +1,19 @@
 const express = require('express');
 const requests = require('simple-requests');
 const JSSoup = require('jssoup').default;
-const { TwitterAPI } = require('twitter-api-v2');
+const { TwitterApi } = require('twitter-api-v2');
 const dotenv = require('dotenv')
 const app = express();
-
 dotenv.config()
+
 const PORT = process.env.PORT || 3000;
+const client = new TwitterApi({
+     appKey: process.env.CONSUMER_APP_KEY,
+     appSecret: process.env.CONSUMER_APP_SECRET,
+     accessToken: process.env.ACCESS_TOKEN_KEY,
+     accessSecret: process.env.ACCESS_TOKEN_SECRET
+});
+
 
 const rtSystemConditions = {
      "Current Frequency": 0,
@@ -45,14 +52,12 @@ const getRTData = () => {
 }
 
 app.get("/ercot-api/", (req, res) => {
-     res.send("This is a test.")
-          .statusCode(200);
+     res.send("This is a test.");
 
 })
 
 app.get("/ercot-api/realtime", (req, res) => {
-     res.json(rtSystemConditions)
-          .statusCode(200);
+     res.json(rtSystemConditions);
 });
 
 server = app.listen(PORT, () => {
@@ -61,5 +66,7 @@ server = app.listen(PORT, () => {
    getRTData();
    setInterval(() => {
         getRTData();
+        client.v2.tweet('Current System Frequency: ' + rtSystemConditions['Current Frequency']);
+        console.log('tweeted');
    }, 60000);
 });
