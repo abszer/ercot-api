@@ -1,0 +1,14 @@
+Current Frequency: 0
+Instantaneous Time Error: 0
+BAAL Exceedances: 0
+Actual System Demand: 0
+Total System Capacity: 0
+Total Wind Output: 0
+Total PVGR Output: 0
+Current System Inertia: 0
+DC_E: 0
+DC_L: 0
+DC_N: 0
+DC_R: 0
+DC_S: 0
+Last Update: 0

@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const requests = require('simple-requests');
 const JSSoup = require('jssoup').default;
 const { TwitterApi } = require('twitter-api-v2');
@@ -13,7 +15,6 @@ const client = new TwitterApi({
      accessToken: process.env.ACCESS_TOKEN_KEY,
      accessSecret: process.env.ACCESS_TOKEN_SECRET
 });
-
 
 const rtSystemConditions = {
      "Current Frequency": 0,
@@ -31,6 +32,8 @@ const rtSystemConditions = {
      "DC_S": 0,
      "Last Update": 0
 }
+
+// FUNCTIONS
 
 const getRTData = () => {
      requests.get("https://www.ercot.com/content/cdr/html/real_time_system_conditions.html")
@@ -51,10 +54,31 @@ const getRTData = () => {
              })
 }
 
+const logRTData = () => {
+     fs.mkdir(path.join(__dirname, 'logs'), (err) => {
+          if(err.errno !== -17 ){
+               console.log(err)
+          }
+
+     })
+
+     let date = new Date().toLocaleDateString('en-US').replace(/\//g, '-'); // replaces all '/' with '-'
+     console.log(date + " " + new Date().toLocaleTimeString('en-US'));
+     const stream = fs.createWriteStream(path.join(__dirname + "/logs/", date + '.txt'), {flags: 'a'});
+     for(props in rtSystemConditions){
+          stream.write(`${props}: ${rtSystemConditions[props]}` + "\n");
+     }
+     stream.end();
+     
+}
+
+
+// ROUTES
+
 app.get("/ercot-api/", (req, res) => {
      res.send("This is a test.");
 
-})
+});
 
 app.get("/ercot-api/realtime", (req, res) => {
      res.json(rtSystemConditions);
@@ -65,8 +89,9 @@ server = app.listen(PORT, () => {
    
    getRTData();
    setInterval(() => {
+        logRTData();
+     //    client.v2.tweet('Current System Frequency: ' + rtSystemConditions['Current Frequency']);
+        console.log('logged');
         getRTData();
-        client.v2.tweet('Current System Frequency: ' + rtSystemConditions['Current Frequency']);
-        console.log('tweeted');
    }, 60000);
 });
