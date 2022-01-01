@@ -38,6 +38,10 @@ const rtSystemConditions = {
 // FUNCTIONS
 
 const getRTData = () => {
+     // event tracking variables 
+     let extremeEvents = [];
+     
+     // data scraper
      requests.get("https://www.ercot.com/content/cdr/html/real_time_system_conditions.html")
      .then((response) => {
           
@@ -50,10 +54,31 @@ const getRTData = () => {
                rtSystemConditions[objKeys[i]] = parseFloat(currentData[i].text);
           }
           rtSystemConditions["Last Update"] = lastUpdate.text.slice(14, lastUpdate.text.length);
+     
+
+          // check to see if grid frequency is less than or greater than what is acceptable
+          if (rtSystemConditions['Current Frequency'] < 59.95 || rtSystemConditions['Current Frequency'] > 60.05){
+               client.v2.tweet('Grid Status: Warning ⚠️\n-- Extreme Frequency Event Detected --\nTrigger Frequency: ' + rtSystemConditions['Current Frequency'] + " Hz" + "\n" + "Current Demand/Total Demand: " + rtSystemConditions['Actual System Demand'] + "/" + rtSystemConditions['Total System Capacity'])
+               console.log('tweeted alert')
+               extremeEvents.push(rtSystemConditions['Last Update'].slice(rtSystemConditions['Last Update'].length - 8, rtSystemConditions['Last Update'].length - 3));
+               console.log(extremeEvents);
+          }
+
+          // check if demand is >= 90% total capacity 
+          if(rtSystemConditions['Actual System Demand'] / rtSystemConditions['Total System Capacity'] >= .90){
+               client.v2.tweet("Grid Status: Warning ⚠️\n-- Demand @ >= 90% Supply\n-- Reduce electricity consumption where possible" + "\n" + "Current Demand/Total Demand: " + rtSystemConditions['Actual System Demand'] + "/" + rtSystemConditions['Total System Capacity'] + "\n" + "Current Grid Frequency: " + rtSystemConditions['Current Frequency'] + " Hz")
+               console.log('tweeted alert')
+               extremeEvents.push(rtSystemConditions['Last Update'].slice(rtSystemConditions['Last Update'].length - 8, rtSystemConditions['Last Update'].length - 3));
+               console.log(extremeEvents);
+          }
+
+
      })
      .catch((err) => {
           res.send("error" + err);
      })
+     
+     
 }
 
 ///////////////////////////////
@@ -61,6 +86,7 @@ const getRTData = () => {
 ///////////////////////////////
 
 const logRTData = () => {
+     // make 'logs' directory if it doesn't already exist
      fs.mkdir(path.join(__dirname, 'logs'), (err) => {
           if(err.errno !== -17 ){
                console.log(err)
@@ -68,12 +94,15 @@ const logRTData = () => {
           
      })
      
+     //create file name from today's date
      let date = new Date().toLocaleDateString('en-US').replace(/\//g, '-'); // replaces all '/' with '-'
      console.log(date + " " + new Date().toLocaleTimeString('en-US'));
-
+     
+     // append file with data stored in rtSystemConditions
      for (const key in rtSystemConditions){
           fs.appendFileSync(path.join(__dirname, `/logs/${date}.txt`), (`${key}: ${rtSystemConditions[key]}` + '\n'));
      }
+     
 }
 
 ///////////////////////////////
@@ -82,7 +111,7 @@ const logRTData = () => {
 
 const parseRTData = (stat) => {
      let sum = 0;
-
+     
      let date = new Date().toLocaleDateString('en-US').replace(/\//g, '-'); // replaces all '/' with '-';
      
      if (stat === 'avg-freq'){
@@ -107,14 +136,19 @@ const checkGridStatus = (checkType=0) => {
      
      if (checkType === 0){
           if ( (serverHours === 11 && serverMinutes === 59) || (serverHours === 23 && serverMinutes === 59) ) {
+               /// this is where tweet will go
                console.log(parseRTData('avg-freq'));
+               
+               // reset tracking variables
+               if(serverHours === 23 || serverHours === 0){
+                    extremeEvents = 0;
+               }
           }
      }
-
+     
      if(checkType === 1){
           return parseRTData('avg-freq');
      }
-     
      
      
 }
@@ -136,7 +170,7 @@ app.get("/ercot-api/realtime", (req, res) => {
      }).catch((err) => {
           res.send(err)
      });
-
+     
 });
 
 app.get("/ercot-api/gridstatus", (req, res) => {
