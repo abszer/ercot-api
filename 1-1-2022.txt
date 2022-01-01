@@ -1,0 +1,14 @@
+Current Frequency: 60.009
+Instantaneous Time Error: -0.908
+BAAL Exceedances: 0
+Actual System Demand: 44373
+Total System Capacity: 52610
+Total Wind Output: 16071
+Total PVGR Output: 3112
+Current System Inertia: 203018
+DC_E: 1
+DC_L: 0
+DC_N: -219
+DC_R: 0
+DC_S: 0
+Last Update: Jan 01, 2022 16:19:27

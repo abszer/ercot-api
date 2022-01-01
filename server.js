@@ -18,6 +18,7 @@ const client = new TwitterApi({
      accessSecret: process.env.ACCESS_TOKEN_SECRET
 });
 
+const rtValuesToBeWritten = [];
 const rtSystemConditions = {
      "Current Frequency": 0,
      "Instantaneous Time Error": 0,
@@ -54,8 +55,12 @@ const getRTData = () => {
                rtSystemConditions[objKeys[i]] = parseFloat(currentData[i].text);
           }
           rtSystemConditions["Last Update"] = lastUpdate.text.slice(14, lastUpdate.text.length);
-     
-
+          
+          for (const key in rtSystemConditions){
+               rtValuesToBeWritten.push(`${key}: ${rtSystemConditions[key]}`);
+          }
+          
+          
           // check to see if grid frequency is less than or greater than what is acceptable
           if (rtSystemConditions['Current Frequency'] < 59.95 || rtSystemConditions['Current Frequency'] > 60.05){
                client.v2.tweet('Grid Status: Warning ⚠️\n-- Extreme Frequency Event Detected --\nTrigger Frequency: ' + rtSystemConditions['Current Frequency'] + " Hz" + "\n" + "Current Demand/Total Demand: " + rtSystemConditions['Actual System Demand'] + "/" + rtSystemConditions['Total System Capacity'])
@@ -63,7 +68,7 @@ const getRTData = () => {
                extremeEvents.push(rtSystemConditions['Last Update'].slice(rtSystemConditions['Last Update'].length - 8, rtSystemConditions['Last Update'].length - 3));
                console.log(extremeEvents);
           }
-
+          
           // check if demand is >= 90% total capacity 
           if(rtSystemConditions['Actual System Demand'] / rtSystemConditions['Total System Capacity'] >= .90){
                client.v2.tweet("Grid Status: Warning ⚠️\n-- Demand @ >= 90% Supply\n-- Reduce electricity consumption where possible" + "\n" + "Current Demand/Total Demand: " + rtSystemConditions['Actual System Demand'] + "/" + rtSystemConditions['Total System Capacity'] + "\n" + "Current Grid Frequency: " + rtSystemConditions['Current Frequency'] + " Hz")
@@ -71,8 +76,7 @@ const getRTData = () => {
                extremeEvents.push(rtSystemConditions['Last Update'].slice(rtSystemConditions['Last Update'].length - 8, rtSystemConditions['Last Update'].length - 3));
                console.log(extremeEvents);
           }
-
-
+          
      })
      .catch((err) => {
           res.send("error" + err);
@@ -98,10 +102,23 @@ const logRTData = () => {
      let date = new Date().toLocaleDateString('en-US').replace(/\//g, '-'); // replaces all '/' with '-'
      console.log(date + " " + new Date().toLocaleTimeString('en-US'));
      
-     // append file with data stored in rtSystemConditions
-     for (const key in rtSystemConditions){
-          fs.appendFileSync(path.join(__dirname, `/logs/${date}.txt`), (`${key}: ${rtSystemConditions[key]}` + '\n'));
+     // append file with data stored in rtValueToBeWritten
+     const stream = fs.createWriteStream(path.join(__dirname, '/logs/' + date + '.txt'), {flags: 'a'});
+     for (const value of rtValuesToBeWritten){
+          stream.write(value + '\n');
      }
+     stream.end(() => {
+          rtValuesToBeWritten = [];
+     });
+     
+     
+     // let data = '';
+     // for (const key in rtSystemConditions){
+     //      data += `${key}: ${rtSystemConditions[key]}\n`;
+     // }
+     
+     // fs.appendFileSync(path.join(__dirname, `/logs/${date}.txt`), data);
+     
      
 }
 
@@ -115,13 +132,20 @@ const parseRTData = (stat) => {
      let date = new Date().toLocaleDateString('en-US').replace(/\//g, '-'); // replaces all '/' with '-';
      
      if (stat === 'avg-freq'){
-          let file = fs.readFileSync(path.join(__dirname, `/logs/${date}.txt`), 'utf-8').split('\n');
-          file.pop();
-          for (let i = 0; i < file.length; i += 14){
-               sum += parseFloat(file[i].slice(file[i].indexOf(':') + 2, file[i].length));
+          for (let i = 0; i < rtValuesToBeWritten.length; i += 14){
+               sum += parseFloat(rtValuesToBeWritten[i].slice(rtValuesToBeWritten[i].indexOf(':') + 2, rtValuesToBeWritten[i].length));
           }
-          return (sum / file.length * 14).toFixed(3);
+          return (sum / rtValuesToBeWritten.length * 14).toFixed(3);
      }
+     
+     // if (stat === 'avg-freq'){
+     //      let file = fs.readFileSync(path.join(__dirname, `/logs/${date}.txt`), 'utf-8').split('\n');
+     //      file.pop();
+     //      for (let i = 0; i < file.length; i += 14){
+     //           sum += parseFloat(file[i].slice(file[i].indexOf(':') + 2, file[i].length));
+     //      }
+     //      return (sum / file.length * 14).toFixed(3);
+     // }
      
 }
 
@@ -147,6 +171,8 @@ const checkGridStatus = (checkType=0) => {
                     }
                     client.v2.tweet("Grid Status: OK ⚠️\nAlerts: " + alertTimes + "\n" + "Average 12 Hour Freq: " + parseRTData('avg-freq') + " Hz\nCurrent Demand/Total Demand: " + rtSystemConditions['Actual System Demand'] + "/" + rtSystemConditions['Total System Capacity'])
                }
+               //log data at end of day
+               logRTData();
                
                // reset tracking variables
                if(serverHours === 23 || serverHours === 0){
@@ -182,21 +208,17 @@ app.get("/ercot-api/realtime", (req, res) => {
      
 });
 
-app.get("/ercot-api/gridstatus", (req, res) => {
-     res.send('average grid frequency for today: ' + checkGridStatus(1));
+app.get("/ercot-api/status", (req, res) => {
+     res.send('average grid frequency for today: ' + checkGridStatus(1) + ' |  # of entries to be logged: ' + rtValuesToBeWritten.length/14);
 })
 
 server = app.listen(PORT, () => {
      console.log("Listening on port: " + PORT);  
      
      getRTData();
-     
      checkGridStatus();
-     
      setInterval(() => {
-          logRTData();
-          //    client.v2.tweet('Current System Frequency: ' + rtSystemConditions['Current Frequency']);
-          console.log('logged');
+          checkGridStatus()
           getRTData();
      }, 60000); // every 60 seconds data is logged
 });
