@@ -137,11 +137,20 @@ const checkGridStatus = (checkType=0) => {
      if (checkType === 0){
           if ( (serverHours === 11 && serverMinutes === 59) || (serverHours === 23 && serverMinutes === 59) ) {
                /// this is where tweet will go
-               console.log(parseRTData('avg-freq'));
+               
+               if(!extremeEvents){
+                    client.v2.tweet("Grid Status: OK ✅\nAverage 12 Hour Frequency: " + parseRTData('avg-freq') + " Hz\nCurrent Demand/Total Demand: " + rtSystemConditions['Actual System Demand'] + "/" + rtSystemConditions['Total System Capacity'])
+               }else{
+                    let alertTimes = ''
+                    for (const time of extremeEvents){
+                         alertTimes += `@${time} `;
+                    }
+                    client.v2.tweet("Grid Status: OK ⚠️\nAlerts: " + alertTimes + "\n" + "Average 12 Hour Freq: " + parseRTData('avg-freq') + " Hz\nCurrent Demand/Total Demand: " + rtSystemConditions['Actual System Demand'] + "/" + rtSystemConditions['Total System Capacity'])
+               }
                
                // reset tracking variables
                if(serverHours === 23 || serverHours === 0){
-                    extremeEvents = 0;
+                    extremeEvents = [];
                }
           }
      }
